@@ -1,11 +1,11 @@
 const fs = require('fs').promises;
 const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
+require('dotenv').config();
 
 // === НАСТРОЙКИ ===
-const TELEGRAM_TOKEN = '7545431135:AAGJLSyS90mwX-GxSrRFsrONWSuEVvJ3qrI'; // <-- ВСТАВЬТЕ СЮДА ТОКЕН
-const CHANNEL_ID = '-1002491929266'; // <-- ВСТАВЬТЕ СЮДА username/id канала
-const PRICE = 3000;
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const CHANNEL_ID = process.env.CHANNEL_ID || '@your_channel'; // Укажите ID канала или username с @
 
 // Получаем путь к папке из аргументов
 const brandDir = process.argv[2];
