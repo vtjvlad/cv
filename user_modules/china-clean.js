@@ -4,6 +4,7 @@ function cleanTitle(title) {
     return title.replace(/[^\w\s-'’]/g, '').trim();
 }
 
+
 function processJson(jsonData) {
     // Проверяем, является ли jsonData массивом
     if (!Array.isArray(jsonData)) {

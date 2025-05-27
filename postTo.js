@@ -6,7 +6,8 @@ require('dotenv').config();
 // === НАСТРОЙКИ ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID || '@your_channel'; // Укажите ID канала или username с @
-const PRICE = '3000';
+const PRICE = 3000;
+const POST_DELAY = 3000; // Задержка в миллисекундах (3 секунды)
 
 // Получаем путь к папке из аргументов
 const brandDir = process.argv[2];
@@ -20,6 +21,9 @@ const brandLink = `https://t.me/${brand}`; // переменная для ссы
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
+// Функция для создания задержки
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 // Функция-обертка для отправки с обработкой rate limit
 async function safeSend(fn, ...args) {
   while (true) {
@@ -29,7 +33,7 @@ async function safeSend(fn, ...args) {
       if (err.response && err.response.body && err.response.body.error_code === 429) {
         const retryAfter = err.response.body.parameters.retry_after || 5;
         console.log(`Слишком много запросов! Жду ${retryAfter} секунд...`);
-        await new Promise(res => setTimeout(res, retryAfter * 1000));
+        await delay(retryAfter * 1000);
       } else {
         throw err;
       }
@@ -52,7 +56,7 @@ async function main() {
     groups[groupNum].push(file);
   }
 
-  // Для каждой группы делаем пост
+  // Для каждой группы делаем пост с задержкой
   for (const groupNum of Object.keys(groups).sort((a, b) => a - b)) {
     const photoFiles = groups[groupNum].map(f => path.join(brandDir, f));
     const text = `${brand}\nВартість: ${PRICE}\n${hashtag}`;
@@ -69,7 +73,10 @@ async function main() {
       await safeSend(bot.sendMediaGroup.bind(bot), CHANNEL_ID, media);
     }
     console.log(`Пост ${groupNum} отправлен!`);
+
+    // Задержка 3 секунды перед следующим постом
+    await delay(POST_DELAY);
   }
 }
 
-main().catch(console.error); 
+main().catch(console.error);
