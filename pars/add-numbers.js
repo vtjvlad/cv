@@ -9,7 +9,7 @@ function addSequentialNumbers(items) {
 }
 
 // Чтение файла
-fs.readFile('./JSON/china-almost.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/china-fetched.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;
@@ -20,7 +20,7 @@ fs.readFile('./JSON/china-almost.json', 'utf8', (err, data) => {
         const numberedData = addSequentialNumbers(jsonData);
 
         // Сохранение результата
-        fs.writeFile('./JSON/china-numbered.json', JSON.stringify(numberedData, null, 2), 'utf8', err => {
+        fs.writeFile('../JSON/china-ready.json', JSON.stringify(numberedData, null, 2), 'utf8', err => {
             if (err) {
                 console.error('Ошибка записи файла:', err);
                 return;

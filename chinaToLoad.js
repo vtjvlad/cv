@@ -79,7 +79,7 @@ async function processImages(jsonFilePath, outputDir) {
 
     // Обрабатываем каждый объект
     for (const item of data) {
-      const { rownum, title, imgSrc: imgSrcArray } = item;
+      const { rownum, title, imgSrc: imgSrcArray, price } = item;
 
       // Создаем папку бренда
       const brandDir = path.join(outputDir, title);
@@ -88,7 +88,7 @@ async function processImages(jsonFilePath, outputDir) {
       // Обрабатываем каждую ссылку
       for (let i = 0; i < imgSrcArray.length; i++) {
         const imageUrl = imgSrcArray[i];
-        const fileName = `${rownum}-${i + 1}`;
+        const fileName = `${rownum}-${i + 1}-${price}`; // Формат: номер-порядковый-цена
         const filePath = path.join(brandDir, fileName);
 
         await downloadImage(imageUrl, filePath);
@@ -106,7 +106,7 @@ async function processImages(jsonFilePath, outputDir) {
 }
 
 // Использование
-const jsonFilePath = 'china-numbered.json'; // Путь к вашему JSON файлу
+const jsonFilePath = './JSON/china-ready.json'; // Путь к вашему JSON файлу
 const outputDir = 'china-images'; // Главная папка для изображений
 
 processImages(jsonFilePath, outputDir);

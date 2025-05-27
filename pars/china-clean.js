@@ -1,4 +1,4 @@
-const { foundBrand } = require('./user_modules/foundBrand');
+const { foundBrand } = require('../user_modules/foundBrand');
 // const { cleanTitle } = require('./user_modules/titleClean');
 // const { wrapPriceCode } = require('./user_modules/warpPrice');
 // const { convertPrice } = require('./user_modules/convPrice');
