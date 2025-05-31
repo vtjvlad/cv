@@ -9,6 +9,7 @@ const match =  code.match(/\bp\s*(\d{3})\w*/);
     
     // Пример диапазонов для преобразования
     const priceRanges = [
+        { min: 92, max: 101, value: 1800 },
         { min: 102, max: 131, value: 2000 },  
         { min: 132, max: 141, value: 2000 },
         { min: 142, max: 151, value: 2100 },
@@ -27,7 +28,10 @@ const match =  code.match(/\bp\s*(\d{3})\w*/);
         { min: 282, max: 351, value: 3800 },
         { min: 352, max: 361, value: 3500 },
         { min: 362, max: 401, value: 3800 },
-        { min: 402, max: 431, value: 4000 } 
+        { min: 402, max: 431, value: 3800 },
+        { min: 432, max: 451, value: 4000 },
+        { min: 452, max: 491, value: 4000 },
+        { min: 492, max: 501, value: 4300 }
         // Добавьте свои диапазоны здесь
     ];
     

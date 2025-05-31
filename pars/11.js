@@ -1,4 +1,5 @@
 const { wrapPriceCode } = require('../user_modules/warpPrice');
+const { prepareTitle } = require('../user_modules/foundBrand');
 
 
 
@@ -16,6 +17,7 @@ function processJson(jsonData) {
         }
         return {
             ...item,
+            nm: prepareTitle(item.title),
             title: wrapPriceCode(item.title)
         };
     });

@@ -9,7 +9,7 @@ function addSequentialNumbers(items) {
 }
 
 // Чтение файла
-fs.readFile('../JSON/china-fetched.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/china-ff.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;

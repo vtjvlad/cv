@@ -33,7 +33,7 @@ function processData(inputFile, outputFile) {
 }
 
 // Process the data
-const inputFile = 'album.json';  // Your input JSON file
-const outputFile = 'processed_data.json';     // Output file name
+const inputFile = '../JSON/album.json';  // Your input JSON file
+const outputFile = '../JSON/processed_data.json';     // Output file name
 
 processData(inputFile, outputFile); 
