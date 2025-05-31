@@ -33,7 +33,7 @@ function processData(inputFile, outputFile) {
 }
 
 // Process the data
-const inputFile = 'china_fetch.json';  // Your input JSON file
+const inputFile = 'album_data.json';  // Your input JSON file
 const outputFile = 'processed_data.json';     // Output file name
 
 processData(inputFile, outputFile); 

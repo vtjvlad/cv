@@ -80,7 +80,7 @@ async function processUrls() {
     try {
         console.log(colors.blue('Starting URL processing...'));
         
-        const urls = await readUrlsFromFile('generated_urls.txt');
+        const urls = await readUrlsFromFile('ch1.txt');
         if (urls.length === 0) {
             throw new Error('No URLs found in the file');
         }
@@ -111,7 +111,7 @@ async function processUrls() {
         progressBar.stop();
 
         // Save results to a file
-        const outputPath = path.join(__dirname, 'album_data_results.json');
+        const outputPath = path.join(__dirname, 'album_data.json');
         await fs.promises.writeFile(outputPath, JSON.stringify(results, null, 2));
         
         // Print summary

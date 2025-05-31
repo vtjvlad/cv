@@ -1,7 +1,7 @@
 const fs = require('fs');
 
 // Читаем файл
-const data = JSON.parse(fs.readFileSync('../processed_data.json', 'utf8'));
+const data = JSON.parse(fs.readFileSync('processed_data.json', 'utf8'));
 
 // Если файл — массив объектов:
 const allItems = Array.isArray(data)
@@ -13,5 +13,5 @@ const products = allItems.map(item => ({
   imgSrc: item.imgsSrc || item.imgs || []
 }));
 
-fs.writeFileSync('../china_extracted.json', JSON.stringify(products, null, 2), 'utf8');
+fs.writeFileSync('china_extracted.json', JSON.stringify(products, null, 2), 'utf8');
 console.log('Done! Результат сохранён в china_extracted.json'); 
