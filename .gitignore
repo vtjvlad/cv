@@ -1,3 +1,4 @@
 node_modules/
 china-images/
 .env
+album_data.json
