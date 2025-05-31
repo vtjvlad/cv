@@ -119,7 +119,7 @@ function processJson(jsonData) {
 // Чтение и запись файла
 const fs = require('fs');
 
-fs.readFile('output.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/china_extracted.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;
@@ -130,7 +130,7 @@ fs.readFile('output.json', 'utf8', (err, data) => {
         const cleanedData = processJson(jsonData);
 
         // Сохранение результата
-        fs.writeFile('china-almost.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
+        fs.writeFile('../JSON/china-223.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
             if (err) {
                 console.error('Ошибка записи файла:', err);
                 return;

@@ -57,7 +57,7 @@ function analyzeResults(data) {
 // Пример использования
 const fs = require('fs');
 
-fs.readFile('./remodel_JSON/china_extracted.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/china_extracted.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;
@@ -69,7 +69,7 @@ fs.readFile('./remodel_JSON/china_extracted.json', 'utf8', (err, data) => {
         const stats = analyzeResults(cleanedData);
 
         // Сохранение результата в новый файл
-        fs.writeFile('./JSON/prePrice.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
+        fs.writeFile('../JSON/prePrice.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
             if (err) {
                 console.error('Ошибка записи файла:', err);
                 return;

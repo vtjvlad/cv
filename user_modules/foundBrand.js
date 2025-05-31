@@ -7,7 +7,7 @@ function prepareTitle(title) {
 function foundBrand(title) {
     // Список брендов с вариантами написания
     const brands = [
-        { canonical: 'Louis Vuitton', variants: ['Louis Vuitton', 'LV', 'LouisVuitton'] },
+        { canonical: 'Louis Vuitton', variants: ['Louis Vuitton', 'LV', 'Lv', 'LVLV', 'LouisVuitton'] },
         { canonical: 'Dior', variants: ['Dior', 'Christian Dior', 'ChristianDior'] },
         { canonical: 'Prada', variants: ['Prada', 'Prada Milano', 'PradaMilan'] },
         { canonical: 'Dolce & Gabbana', variants: ['Dolce & Gabbana', 'Dolce Gabbana', 'D&G', 'DolceGabbana'] },
@@ -26,7 +26,8 @@ function foundBrand(title) {
         { canonical: 'Philipp Plein', variants: ['Philipp Plein', 'Plein', 'PhilippPlein'] },
         { canonical: 'Amiri', variants: ['Amiri', 'Amiri LA'] },
         { canonical: 'Off-White', variants: ['Off-White', 'Off White', 'OffWhite'] },
-        { canonical: 'Boss', variants: ['Boss', 'Hugo Boss', 'HugoBoss'] }
+        { canonical: 'Boss', variants: ['Boss', 'BOSS', 'Hugo Boss', 'HugoBoss'] },
+        { canonical: 'GIVENCHY', variants: ['GIVENCHY', 'Givenchy', 'Givenchy Paris', 'G I V E N C H Y',] }
     ];
     
     // Приводим заголовок к нижнему регистру для поиска
