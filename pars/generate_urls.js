@@ -18,8 +18,8 @@ function generateUrls(startTimestamp, count, interval = 32) {
 }
 
 // Generate 10 URLs starting from the given timestamp
-const startTimestamp = 1748074037274;
-const urls = generateUrls(startTimestamp, 500);
+const startTimestamp = 1748599085466;
+const urls = generateUrls(startTimestamp, 2274);
 
 // Save URLs to file
 fs.writeFileSync('generated_urls.txt', urls.join('\n'));
