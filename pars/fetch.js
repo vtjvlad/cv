@@ -80,7 +80,7 @@ async function processUrls() {
     try {
         console.log(colors.blue('Starting URL processing...'));
         
-        const urls = await readUrlsFromFile('fff.txt');
+        const urls = await readUrlsFromFile('ffff.txt');
         if (urls.length === 0) {
             throw new Error('No URLs found in the file');
         }
