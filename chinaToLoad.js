@@ -63,46 +63,105 @@ async function countDownloadedFiles(brandDir) {
   }
 }
 
+// Функция для создания агента с таймаутами
+const createAgent = () => new https.Agent({
+  rejectUnauthorized: false,
+  keepAlive: true,
+  maxSockets: 50,
+  timeout: 30000,
+  keepAliveMsecs: 30000
+});
+
+// Функция для проверки зависания
+async function checkHang(startTime, timeout = 30000) {
+  if (Date.now() - startTime > timeout) {
+    throw new Error('Операция зависла');
+  }
+}
+
 // Функция для загрузки одного изображения
 async function downloadImage(url, filepath, agent, retries = 3) {
   const ext = path.extname(url.split('?')[0]) || '.jpg';
   const finalPath = filepath + ext;
   
+  // Проверяем существование файла
   if (await fileExists(finalPath)) {
-    return true;
+    return { status: 'skipped', path: finalPath }; // Возвращаем объект с информацией о пропуске
   }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
+    const startTime = Date.now();
     try {
-      const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream',
-        httpsAgent: agent,
-        timeout: 30000,
-        maxContentLength: 50 * 1024 * 1024,
-        maxBodyLength: 50 * 1024 * 1024,
-        headers: {
-          'Connection': 'keep-alive',
-          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      });
+      const response = await Promise.race([
+        axios({
+      url,
+      method: 'GET',
+      responseType: 'stream',
+          httpsAgent: agent,
+          timeout: 30000,
+          maxContentLength: 50 * 1024 * 1024,
+          maxBodyLength: 50 * 1024 * 1024,
+          headers: {
+            'Connection': 'keep-alive',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Таймаут запроса')), 30000)
+        )
+      ]);
 
       const writer = fs.createWriteStream(finalPath);
-      response.data.pipe(writer);
+      let bytesWritten = 0;
+      let lastProgress = Date.now();
+      let isHanging = false;
 
-      return new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
+      const hangCheckPromise = new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (Date.now() - lastProgress > 10000) {
+            isHanging = true;
+            clearInterval(checkInterval);
+            reject(new Error('Загрузка зависла'));
+          }
+        }, 1000);
+
+        writer.on('finish', () => {
+          clearInterval(checkInterval);
+          resolve();
+        });
+
+        writer.on('error', (err) => {
+          clearInterval(checkInterval);
+          reject(err);
+        });
       });
+
+      response.data.on('data', (chunk) => {
+        bytesWritten += chunk.length;
+        lastProgress = Date.now();
+      });
+
+    response.data.pipe(writer);
+
+      try {
+        await hangCheckPromise;
+        return { status: 'downloaded', path: finalPath }; // Возвращаем объект с информацией об успешной загрузке
+      } catch (error) {
+        if (isHanging) {
+          writer.destroy();
+          fs.unlink(finalPath, () => {});
+          throw error;
+        }
+        throw error;
+      }
     } catch (error) {
       if (attempt === retries) {
-        console.error(`Ошибка при загрузке ${url} после ${retries} попыток:`.red, error.message);
-        return null;
+        console.error(createBox(`Ошибка при загрузке ${url} после ${retries} попыток:`.red + '\n' + error.message));
+        return { status: 'failed', path: finalPath }; // Возвращаем объект с информацией об ошибке
       }
-      await delay(1000 * attempt);
+      await delay(2000 * attempt);
     }
   }
 }
@@ -110,31 +169,70 @@ async function downloadImage(url, filepath, agent, retries = 3) {
 // Функция для параллельной загрузки с ограничением
 async function downloadBatch(urls, filepaths, concurrency = 15) {
   const results = [];
-  const agents = createAgents(concurrency);
+  const agents = Array(concurrency).fill(null).map(() => createAgent());
   let agentIndex = 0;
 
-  // Разбиваем на более мелкие батчи для лучшего контроля
   const batchSize = Math.ceil(urls.length / Math.ceil(urls.length / concurrency));
   
   for (let i = 0; i < urls.length; i += batchSize) {
+    const batchStartTime = Date.now();
     const batch = urls.slice(i, i + batchSize);
     const batchPaths = filepaths.slice(i, i + batchSize);
     
     const promises = batch.map((url, index) => {
       const agent = agents[agentIndex];
       agentIndex = (agentIndex + 1) % agents.length;
-      return downloadImage(url, batchPaths[index], agent);
+      return downloadImage(url, batchPaths[index], agent).catch(error => {
+        console.error(createBox(`Ошибка при загрузке файла:`.red + '\n' + error.message));
+        return { status: 'failed', path: batchPaths[index] };
+      });
     });
 
-    const batchResults = await Promise.all(promises);
-    results.push(...batchResults);
+    try {
+      const batchResults = await Promise.race([
+        Promise.all(promises),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Таймаут батча')), 60000)
+        )
+      ]);
+      results.push(...batchResults);
+  } catch (error) {
+      console.error(createBox('Ошибка при загрузке батча:'.red + '\n' + error.message));
+      results.push(...Array(batch.length).fill({ status: 'failed', path: batchPaths[0] }));
+    }
 
-    // Небольшая задержка между батчами для предотвращения перегрузки
+    if (Date.now() - batchStartTime > 60000) {
+      console.warn(createBox('Предупреждение: батч выполнялся слишком долго'.yellow));
+    }
+
     if (i + batchSize < urls.length) {
-      await delay(500);
+      await delay(1000);
     }
   }
   return results;
+}
+
+// Функция для создания рамки
+function createBox(text, width = 50) {
+  const lines = text.split('\n');
+  const maxLength = Math.max(...lines.map(line => line.length), width);
+  const top = '╔' + '═'.repeat(maxLength + 2) + '╗';
+  const bottom = '╚' + '═'.repeat(maxLength + 2) + '╝';
+  const content = lines.map(line => '║ ' + line.padEnd(maxLength) + ' ║').join('\n');
+  return `${top}\n${content}\n${bottom}`;
+}
+
+// Функция для создания заголовка
+function createHeader(text) {
+  const width = process.stdout.columns - 4;
+  const padding = Math.floor((width - text.length) / 2);
+  const header = '═'.repeat(padding) + ' ' + text + ' ' + '═'.repeat(padding);
+  return '\n' + '╔' + header + '╗\n' + '╚' + '═'.repeat(header.length) + '╝\n';
+}
+
+// Функция для создания подзаголовка
+function createSubHeader(text) {
+  return '\n' + '─'.repeat(process.stdout.columns - 4).gray + '\n' + text.bold.cyan + '\n' + '─'.repeat(process.stdout.columns - 4).gray + '\n';
 }
 
 // Функция для создания интерфейса выбора брендов
@@ -187,26 +285,30 @@ async function showBrandSelection(brands, brandStats) {
 
   const showMainMenu = async () => {
     console.clear();
-    console.log('\n=== Выбор брендов для загрузки ===\n'.bold.cyan);
-    console.log('Управление:'.bold);
-    console.log('Space - Выбрать/отменить');
-    console.log('Enter - Завершить выбор\n');
+    console.log(createHeader('Выбор брендов для загрузки'));
+    
+    console.log(createBox(
+      'Управление:\n' +
+      'Space - Выбрать/отменить\n' +
+      'Enter - Завершить выбор'
+    ).cyan);
 
     if (searchQuery) {
-      console.log(`Поиск: ${searchQuery.bold.yellow}\n`);
+      console.log(createSubHeader(`Поиск: ${searchQuery.bold.yellow}`));
     }
 
-    console.log(`Сортировка: ${currentSort.bold.cyan}`);
-    console.log(`Отображение: ${(showFullNames ? 'Полные названия' : 'Короткие названия').bold.cyan}\n`);
+    console.log(createBox(
+      `Сортировка: ${currentSort.bold.cyan}\n` +
+      `Отображение: ${(showFullNames ? 'Полные названия' : 'Короткие названия').bold.cyan}`
+    ).cyan);
 
     if (selectedBrands.length > 0) {
-      console.log('Выбранные бренды:'.bold.green);
+      console.log(createSubHeader('Выбранные бренды'));
       selectedBrands.forEach(brand => {
         const stats = brandStats[brand];
         const progress = stats.totalPhotos > 0 ? Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0;
-        console.log(`- ${brand} (${progress}% готово)`.green);
+        console.log(createBox(`${brand} (${progress}% готово)`).green);
       });
-      console.log('');
     }
 
     const { action } = await inquirer.prompt([
@@ -347,7 +449,7 @@ async function showBrandSelection(brands, brandStats) {
 
       case 'simple_list': {
         console.clear();
-        console.log('\n=== Список брендов ===\n'.bold.cyan);
+        console.log(createHeader('Список брендов'));
         
         // Сортируем бренды
         const sortedBrands = [...filteredBrands].sort((a, b) => {
@@ -376,25 +478,65 @@ async function showBrandSelection(brands, brandStats) {
             Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0));
           const isSelected = selectedBrands.includes(brand);
           
+          // Определяем цвет прогресса
+          let progressColor = 'white';
+          if (progress === 100) progressColor = 'green';
+          else if (progress >= 75) progressColor = 'cyan';
+          else if (progress >= 50) progressColor = 'yellow';
+          else if (progress >= 25) progressColor = 'magenta';
+          else progressColor = 'red';
+
           const status = isSelected ? '✓'.green : ' ';
           const filledBlocks = Math.max(0, Math.min(10, Math.floor(progress / 10)));
           const emptyBlocks = 10 - filledBlocks;
-          const progressBar = '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
+          const progressBar = '█'.repeat(filledBlocks)[progressColor] + '░'.repeat(emptyBlocks).gray;
           
           console.log(
-            `${status} ${(index + 1).toString().padStart(2, ' ')}. ${displayName.padEnd(20)} ` +
-            `📁 ${stats.totalGroups.toString().padStart(3, ' ')} групп ` +
-            `[${progressBar}] ${progress}% ` +
-            `(${stats.downloadedPhotos}/${stats.totalPhotos} фото)`
+            `${status} ${(index + 1).toString().padStart(2, ' ')}. ` +
+            `${displayName.padEnd(20).cyan} ` +
+            `📁 ${stats.totalGroups.toString().padStart(3, ' ').yellow} групп ` +
+            `[${progressBar}] ` +
+            `${progress}%`.bold[progressColor] + ' ' +
+            `(${stats.downloadedPhotos}/${stats.totalPhotos} фото)`.gray
           );
         });
 
-        console.log('\nНажмите Enter для возврата в меню...');
+        console.log(createSubHeader('Нажмите Enter для возврата в меню...'));
         await new Promise(resolve => process.stdin.once('data', resolve));
         continue;
       }
     }
   }
+}
+
+// Функция для создания анимированного спиннера
+function createSpinner(text) {
+  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  let i = 0;
+  return setInterval(() => {
+    process.stdout.write(`\r${frames[i]} ${text}`);
+    i = (i + 1) % frames.length;
+  }, 80);
+}
+
+// Функция для создания красивого прогресс-бара
+function createProgressBar(current, total, width = 30) {
+  const progress = Math.round((current / total) * width);
+  const filled = '█'.repeat(progress);
+  const empty = '░'.repeat(width - progress);
+  const percentage = Math.round((current / total) * 100);
+  return `[${filled}${empty}] ${percentage}%`;
+}
+
+// Функция для форматирования скорости загрузки
+function formatSpeed(bytes, ms) {
+  const speed = bytes / (ms / 1000);
+  if (speed > 1024 * 1024) {
+    return `${(speed / (1024 * 1024)).toFixed(2)} MB/s`;
+  } else if (speed > 1024) {
+    return `${(speed / 1024).toFixed(2)} KB/s`;
+  }
+  return `${speed.toFixed(2)} B/s`;
 }
 
 // Основная функция
@@ -403,7 +545,8 @@ async function processImages(jsonFilePath, outputDir) {
     console.clear();
     const spinner = ora({
       text: '📥 Загрузка данных...',
-      color: 'cyan'
+      color: 'cyan',
+      spinner: 'dots'
     }).start();
 
     // Создаем главную папку
@@ -554,69 +697,135 @@ async function processImages(jsonFilePath, outputDir) {
     let skippedImages = 0;
     const startTime = Date.now();
 
-    // Создаем прогресс-бар
+    // Создаем улучшенный прогресс-бар
     const progressBar = new cliProgress.SingleBar({
-      format: '📊 Прогресс |{bar}| {percentage}% | {value}/{total} изображений | Пропущено: {skipped} | Осталось: {eta}s',
+      clearOnComplete: false,
+      hideCursor: true,
+      format: '📊 {bar} {percentage}% | {value}/{total} | {speed} | {brand} | ⏱️ {eta}s | ⏭️ {skipped} | ❌ {failed} | 👥 {agents} | 📦 {batches}',
       barCompleteChar: '█',
       barIncompleteChar: '░',
-      hideCursor: true
+      stopOnComplete: true,
+      forceRedraw: true,
+      barGlue: '\x1b[37m',
+      formatValue: (v, options, type) => {
+        return type === 'value' ? v.toString().padStart(options.valueSize) : v;
+      }
     });
 
-    // Инициализируем прогресс-бар
-    progressBar.start(totalImages, 0, { skipped: 0 });
+    // Инициализируем прогресс-бар с более короткими метками
+    progressBar.start(totalImages, 0, {
+      speed: '0 B/s',
+      brand: 'Начало',
+      skipped: 0,
+      failed: 0,
+      agents: concurrency,
+      batches: Math.ceil(totalImages / concurrency)
+    });
+
+    let currentBrand = '';
+    let brandStartTime = Date.now();
+    let brandProcessed = 0;
+    let lastUpdateTime = Date.now();
+    let lastProcessedCount = 0;
+    let activeAgents = concurrency;
+    let activeBatches = Math.ceil(totalImages / concurrency);
 
     // Обрабатываем каждый объект
     for (const item of filteredData) {
-      if (!item.imgSrc || !Array.isArray(item.imgSrc)) {
-        console.warn('⚠️ Пропущен объект без imgSrc:'.yellow, item);
-        continue;
-      }
+      try {
+        if (!item.imgSrc || !Array.isArray(item.imgSrc)) {
+          console.warn(createBox('⚠️ Пропущен объект без imgSrc:'.yellow + '\n' + JSON.stringify(item, null, 2)));
+          continue;
+        }
 
-      const { rownum = '0', title = 'unknown', imgSrc: imgSrcArray, price = '0' } = item;
-      
-      // Определяем путь сохранения в зависимости от выбранной структуры
-      let brandDir = outputDir;
-      switch (structure || 'brands') {
-        case 'brands':
-          brandDir = path.join(outputDir, title);
-          break;
-        case 'groups':
-          brandDir = path.join(outputDir, title, `group-${rownum}`);
-          break;
-        case 'date':
-          const today = new Date().toISOString().split('T')[0];
-          brandDir = path.join(outputDir, today, title);
-          break;
-        default:
-          brandDir = path.join(outputDir, title);
-      }
-      
+        const { rownum = '0', title = 'unknown', imgSrc: imgSrcArray, price = '0' } = item;
+        
+        // Если сменился бренд, обновляем статистику
+        if (title !== currentBrand) {
+          currentBrand = title;
+          brandStartTime = Date.now();
+          brandProcessed = 0;
+        }
+
+        // Определяем путь сохранения в зависимости от выбранной структуры
+        let brandDir = outputDir;
+        switch (structure || 'brands') {
+          case 'brands':
+            brandDir = path.join(outputDir, title);
+            break;
+          case 'groups':
+            brandDir = path.join(outputDir, title, `group-${rownum}`);
+            break;
+          case 'date':
+            const today = new Date().toISOString().split('T')[0];
+            brandDir = path.join(outputDir, today, title);
+            break;
+          default:
+            brandDir = path.join(outputDir, title);
+        }
+        
       await fsPromises.mkdir(brandDir, { recursive: true });
 
-      const filepaths = imgSrcArray.map((_, i) => {
-        let filename = `${rownum}-${i + 1}-${price}`;
-        if (format === 'jpg') filename += '.jpg';
-        else if (format === 'png') filename += '.png';
-        return path.join(brandDir, filename);
-      });
+        const filepaths = imgSrcArray.map((_, i) => {
+          let filename = `${rownum}-${i + 1}-${price}`;
+          if (format === 'jpg') filename += '.jpg';
+          else if (format === 'png') filename += '.png';
+          return path.join(brandDir, filename);
+        });
 
-      const results = await downloadBatch(imgSrcArray, filepaths, concurrency);
-      const newSkipped = results.filter(r => r === true).length;
-      skippedImages += newSkipped;
-      processedImages += imgSrcArray.length;
-      
-      progressBar.update(processedImages, { skipped: skippedImages });
+        const results = await downloadBatch(imgSrcArray, filepaths, concurrency);
+        const newSkipped = results.filter(r => r.status === 'skipped').length;
+        const newFailed = results.filter(r => r.status === 'failed').length;
+        const newDownloaded = results.filter(r => r.status === 'downloaded').length;
+        
+        skippedImages += newSkipped;
+        processedImages += imgSrcArray.length;
+        brandProcessed += imgSrcArray.length;
+        
+        // Обновляем прогресс-бар
+        const currentTime = Date.now();
+        const elapsed = currentTime - brandStartTime;
+        const timeSinceLastUpdate = currentTime - lastUpdateTime;
+        
+        let speed = '0 B/s';
+        if (timeSinceLastUpdate >= 1000) {
+          const processedSinceLastUpdate = processedImages - lastProcessedCount;
+          speed = formatSpeed(processedSinceLastUpdate * 1024 * 1024, timeSinceLastUpdate);
+          lastUpdateTime = currentTime;
+          lastProcessedCount = processedImages;
+        }
+        
+        // Сокращаем название бренда если оно слишком длинное
+        const displayBrand = title.length > 15 ? title.substring(0, 12) + '...' : title;
+        
+        progressBar.update(processedImages, {
+          speed,
+          brand: displayBrand.cyan,
+          skipped: skippedImages,
+          failed: newFailed,
+          agents: activeAgents,
+          batches: activeBatches
+        });
 
-      await delay(1000);
+        // Небольшая задержка между обновлениями
+        await delay(100);
+      } catch (error) {
+        console.error(createBox(`Ошибка при обработке бренда ${item.title}:`.red + '\n' + error.message));
+        // Продолжаем с следующим брендом
+        continue;
+      }
     }
 
     progressBar.stop();
     const totalTime = Date.now() - startTime;
     
-    console.log('\n✨ Загрузка завершена\n'.bold.cyan);
-    console.log(`⏱️ Общее время: ${formatTime(totalTime).bold.green}`);
-    console.log(`📥 Загружено новых изображений: ${(processedImages - skippedImages).toString().bold.green}`);
-    console.log(`⏭️ Пропущено существующих: ${skippedImages.toString().bold.yellow}`);
+    console.log(createHeader('✨ Загрузка завершена'));
+    console.log(createBox(
+      `⏱️ Общее время: ${formatTime(totalTime).bold.green}\n` +
+      `📥 Загружено новых изображений: ${(processedImages - skippedImages).toString().bold.green}\n` +
+      `⏭️ Пропущено существующих: ${skippedImages.toString().bold.yellow}\n` +
+      `⚡ Средняя скорость: ${formatSpeed(processedImages * 1024 * 1024, totalTime).bold.cyan}`
+    ).cyan);
 
     // Сохраняем статистику если выбрано
     if (logging && logging.includes('stats')) {
@@ -641,9 +850,9 @@ async function processImages(jsonFilePath, outputDir) {
     }
 
   } catch (error) {
-    console.error('❌ Ошибка:'.bold.red, error.message);
+    console.error(createBox('❌ Критическая ошибка:'.bold.red + '\n' + error.message));
     if (error instanceof SyntaxError) {
-      console.error('⚠️ Ошибка в формате JSON файла. Проверьте, что файл содержит корректный JSON массив.'.yellow);
+      console.error(createBox('⚠️ Ошибка в формате JSON файла. Проверьте, что файл содержит корректный JSON массив.'.yellow));
     }
   }
 }
