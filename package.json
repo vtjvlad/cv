@@ -7,7 +7,9 @@
     "colors": "^1.4.0",
     "dotenv": "^16.5.0",
     "fs": "^0.0.1-security",
+    "inquirer": "^12.6.3",
     "node-telegram-bot-api": "^0.66.0",
+    "ora": "^8.2.0",
     "path": "^0.12.7"
   }
 }

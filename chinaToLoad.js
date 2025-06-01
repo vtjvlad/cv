@@ -4,31 +4,9 @@ const path = require('path');
 const axios = require('axios');
 const https = require('https');
 const cliProgress = require('cli-progress');
-const readline = require('readline');
+const { default: inquirer } = require('inquirer');
+const { default: ora } = require('ora');
 const colors = require('colors');
-
-// Создаем интерфейс для чтения ввода
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-// Функция для получения ввода от пользователя
-function question(query) {
-  return new Promise((resolve) => {
-    rl.question(query, resolve);
-  });
-}
-
-// Функция для подсчета скачанных файлов
-async function countDownloadedFiles(brandDir) {
-  try {
-    const files = await fsPromises.readdir(brandDir);
-    return files.length;
-  } catch {
-    return 0;
-  }
-}
 
 // Создаем агент для игнорирования SSL ошибок
 const httpsAgent = new https.Agent({
@@ -36,6 +14,16 @@ const httpsAgent = new https.Agent({
   keepAlive: true,
   maxSockets: 50
 });
+
+// Создаем пул агентов для лучшего управления соединениями
+const createAgents = (count) => {
+  return Array(count).fill(null).map(() => new https.Agent({
+    rejectUnauthorized: false,
+    keepAlive: true,
+    maxSockets: 50,
+    timeout: 30000
+  }));
+};
 
 // Функция для форматирования времени
 function formatTime(ms) {
@@ -65,14 +53,23 @@ async function fileExists(filepath) {
   }
 }
 
+// Функция для подсчета скачанных файлов
+async function countDownloadedFiles(brandDir) {
+  try {
+    const files = await fsPromises.readdir(brandDir);
+    return files.length;
+  } catch {
+    return 0;
+  }
+}
+
 // Функция для загрузки одного изображения
-async function downloadImage(url, filepath, retries = 3) {
-  // Проверяем существование файла
+async function downloadImage(url, filepath, agent, retries = 3) {
   const ext = path.extname(url.split('?')[0]) || '.jpg';
   const finalPath = filepath + ext;
   
   if (await fileExists(finalPath)) {
-    return true; // Файл уже существует
+    return true;
   }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -81,10 +78,16 @@ async function downloadImage(url, filepath, retries = 3) {
         url,
         method: 'GET',
         responseType: 'stream',
-        httpsAgent,
-        timeout: 30000, // 30 секунд таймаут
-        maxContentLength: 50 * 1024 * 1024, // 50MB максимум
-        maxBodyLength: 50 * 1024 * 1024
+        httpsAgent: agent,
+        timeout: 30000,
+        maxContentLength: 50 * 1024 * 1024,
+        maxBodyLength: 50 * 1024 * 1024,
+        headers: {
+          'Connection': 'keep-alive',
+          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
       });
 
       const writer = fs.createWriteStream(finalPath);
@@ -99,7 +102,6 @@ async function downloadImage(url, filepath, retries = 3) {
         console.error(`Ошибка при загрузке ${url} после ${retries} попыток:`.red, error.message);
         return null;
       }
-      // Ждем перед следующей попыткой
       await delay(1000 * attempt);
     }
   }
@@ -108,38 +110,307 @@ async function downloadImage(url, filepath, retries = 3) {
 // Функция для параллельной загрузки с ограничением
 async function downloadBatch(urls, filepaths, concurrency = 15) {
   const results = [];
-  for (let i = 0; i < urls.length; i += concurrency) {
-    const batch = urls.slice(i, i + concurrency);
-    const batchPaths = filepaths.slice(i, i + concurrency);
+  const agents = createAgents(concurrency);
+  let agentIndex = 0;
+
+  // Разбиваем на более мелкие батчи для лучшего контроля
+  const batchSize = Math.ceil(urls.length / Math.ceil(urls.length / concurrency));
+  
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize);
+    const batchPaths = filepaths.slice(i, i + batchSize);
     
-    // Загружаем батч
-    const promises = batch.map((url, index) => 
-      downloadImage(url, batchPaths[index])
-    );
+    const promises = batch.map((url, index) => {
+      const agent = agents[agentIndex];
+      agentIndex = (agentIndex + 1) % agents.length;
+      return downloadImage(url, batchPaths[index], agent);
+    });
+
     const batchResults = await Promise.all(promises);
     results.push(...batchResults);
 
-    // Добавляем небольшую задержку между батчами
-    if (i + concurrency < urls.length) {
-      await delay(1000);
+    // Небольшая задержка между батчами для предотвращения перегрузки
+    if (i + batchSize < urls.length) {
+      await delay(500);
     }
   }
   return results;
 }
 
+// Функция для создания интерфейса выбора брендов
+async function showBrandSelection(brands, brandStats) {
+  let currentSort = 'photos'; // photos, name, progress
+  let showFullNames = false;
+  let searchQuery = '';
+  let filteredBrands = [...brands];
+  let selectedBrands = [];
+
+  const updateDisplay = () => {
+    // Фильтрация по поиску
+    filteredBrands = brands.filter(brand => 
+      brand.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Сортировка
+    filteredBrands.sort((a, b) => {
+      const statsA = brandStats[a];
+      const statsB = brandStats[b];
+      const progressA = statsA.totalPhotos > 0 ? (statsA.downloadedPhotos / statsA.totalPhotos) * 100 : 0;
+      const progressB = statsB.totalPhotos > 0 ? (statsB.downloadedPhotos / statsB.totalPhotos) * 100 : 0;
+
+      switch (currentSort) {
+        case 'photos':
+          return statsB.totalPhotos - statsA.totalPhotos;
+        case 'name':
+          return a.localeCompare(b);
+        case 'progress':
+          return progressB - progressA;
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const createBrandChoice = (brand) => {
+    const stats = brandStats[brand];
+    const displayName = showFullNames ? brand : brand.split(' ')[0];
+    const remaining = stats.totalPhotos - stats.downloadedPhotos;
+    const progress = stats.totalPhotos > 0 ? Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0;
+    
+    return {
+      name: `${displayName} 📸 ${stats.totalPhotos} фото (${progress}% готово)`,
+      value: brand,
+      short: displayName,
+      stats
+    };
+  };
+
+  const showMainMenu = async () => {
+    console.clear();
+    console.log('\n=== Выбор брендов для загрузки ===\n'.bold.cyan);
+    console.log('Управление:'.bold);
+    console.log('Space - Выбрать/отменить');
+    console.log('Enter - Завершить выбор\n');
+
+    if (searchQuery) {
+      console.log(`Поиск: ${searchQuery.bold.yellow}\n`);
+    }
+
+    console.log(`Сортировка: ${currentSort.bold.cyan}`);
+    console.log(`Отображение: ${(showFullNames ? 'Полные названия' : 'Короткие названия').bold.cyan}\n`);
+
+    if (selectedBrands.length > 0) {
+      console.log('Выбранные бренды:'.bold.green);
+      selectedBrands.forEach(brand => {
+        const stats = brandStats[brand];
+        const progress = stats.totalPhotos > 0 ? Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0;
+        console.log(`- ${brand} (${progress}% готово)`.green);
+      });
+      console.log('');
+    }
+
+    const { action } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'Выберите действие:',
+        choices: [
+          { name: 'Выбрать бренды', value: 'select' },
+          { name: 'Изменить сортировку', value: 'sort' },
+          { name: 'Переключить отображение названий', value: 'names' },
+          { name: 'Поиск по названию', value: 'search' },
+          { name: 'Показать простой список', value: 'simple_list' },
+          { name: 'Очистить выбор', value: 'clear' },
+          { name: 'Завершить выбор и продолжить', value: 'done' },
+          new inquirer.Separator(),
+          { name: 'Отмена', value: 'cancel' },
+          { name: 'Выход', value: 'exit' }
+        ]
+      }
+    ]);
+
+    return action;
+  };
+
+  while (true) {
+    const action = await showMainMenu();
+
+    switch (action) {
+      case 'select': {
+        const choices = [
+          {
+            name: '📦 Загрузить все бренды',
+            value: 'all',
+            short: 'Все'
+          },
+          ...filteredBrands.map(createBrandChoice),
+          new inquirer.Separator(),
+          { name: '❌ Отмена', value: 'cancel' }
+        ];
+
+        const { newSelectedBrands } = await inquirer.prompt([
+          {
+            type: 'checkbox',
+            name: 'newSelectedBrands',
+            message: 'Выберите бренды для загрузки:',
+            choices,
+            pageSize: 20,
+            default: selectedBrands,
+            validate: (answer) => {
+              if (answer.includes('cancel')) {
+                return true;
+              }
+              if (answer.length < 1) {
+                return 'Выберите хотя бы один бренд';
+              }
+              return true;
+            }
+          }
+        ]);
+
+        if (newSelectedBrands.includes('cancel')) {
+          continue;
+        }
+        selectedBrands = newSelectedBrands;
+        break;
+      }
+
+      case 'sort': {
+        const { newSort } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'newSort',
+            message: 'Выберите тип сортировки:',
+            choices: [
+              { name: 'По количеству фото', value: 'photos' },
+              { name: 'По названию', value: 'name' },
+              { name: 'По прогрессу загрузки', value: 'progress' },
+              new inquirer.Separator(),
+              { name: '❌ Отмена', value: 'cancel' }
+            ],
+            default: currentSort
+          }
+        ]);
+
+        if (newSort === 'cancel') {
+          continue;
+        }
+        currentSort = newSort;
+        break;
+      }
+
+      case 'names':
+        showFullNames = !showFullNames;
+        break;
+
+      case 'search': {
+        const { query } = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'query',
+            message: 'Введите текст для поиска (или "отмена" для возврата):',
+            default: searchQuery,
+            validate: (input) => {
+              if (input.toLowerCase() === 'отмена') {
+                return true;
+              }
+              return true;
+            }
+          }
+        ]);
+
+        if (query.toLowerCase() === 'отмена') {
+          continue;
+        }
+        searchQuery = query;
+        break;
+      }
+
+      case 'clear':
+        selectedBrands = [];
+        break;
+
+      case 'done':
+        if (selectedBrands.length > 0) {
+          return selectedBrands;
+        } else {
+          console.log('\n⚠️ Выберите хотя бы один бренд перед продолжением'.yellow);
+          await delay(2000);
+        }
+        break;
+
+      case 'cancel':
+        continue;
+
+      case 'exit':
+        process.exit(0);
+
+      case 'simple_list': {
+        console.clear();
+        console.log('\n=== Список брендов ===\n'.bold.cyan);
+        
+        // Сортируем бренды
+        const sortedBrands = [...filteredBrands].sort((a, b) => {
+          const statsA = brandStats[a];
+          const statsB = brandStats[b];
+          const progressA = statsA.totalPhotos > 0 ? (statsA.downloadedPhotos / statsA.totalPhotos) * 100 : 0;
+          const progressB = statsB.totalPhotos > 0 ? (statsB.downloadedPhotos / statsB.totalPhotos) * 100 : 0;
+
+          switch (currentSort) {
+            case 'photos':
+              return statsB.totalPhotos - statsA.totalPhotos;
+            case 'name':
+              return a.localeCompare(b);
+            case 'progress':
+              return progressB - progressA;
+            default:
+              return 0;
+          }
+        });
+
+        // Выводим список
+        sortedBrands.forEach((brand, index) => {
+          const stats = brandStats[brand];
+          const displayName = showFullNames ? brand : brand.split(' ')[0];
+          const progress = Math.max(0, Math.min(100, stats.totalPhotos > 0 ? 
+            Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0));
+          const isSelected = selectedBrands.includes(brand);
+          
+          const status = isSelected ? '✓'.green : ' ';
+          const filledBlocks = Math.max(0, Math.min(10, Math.floor(progress / 10)));
+          const emptyBlocks = 10 - filledBlocks;
+          const progressBar = '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
+          
+          console.log(
+            `${status} ${(index + 1).toString().padStart(2, ' ')}. ${displayName.padEnd(20)} ` +
+            `📁 ${stats.totalGroups.toString().padStart(3, ' ')} групп ` +
+            `[${progressBar}] ${progress}% ` +
+            `(${stats.downloadedPhotos}/${stats.totalPhotos} фото)`
+          );
+        });
+
+        console.log('\nНажмите Enter для возврата в меню...');
+        await new Promise(resolve => process.stdin.once('data', resolve));
+        continue;
+      }
+    }
+  }
+}
+
 // Основная функция
 async function processImages(jsonFilePath, outputDir) {
   try {
-    console.clear(); // Очищаем консоль
-    console.log('\nЗагрузка изображений\n'.bold.cyan);
-    
+    console.clear();
+    const spinner = ora({
+      text: '📥 Загрузка данных...',
+      color: 'cyan'
+    }).start();
+
     // Создаем главную папку
     await fsPromises.mkdir(outputDir, { recursive: true });
 
-    // Читаем весь файл
+    // Читаем и парсим JSON
     const fileContent = await fsPromises.readFile(jsonFilePath, 'utf8');
-    
-    // Парсим JSON
     const data = JSON.parse(fileContent);
     
     if (!Array.isArray(data)) {
@@ -159,9 +430,9 @@ async function processImages(jsonFilePath, outputDir) {
     const brands = Object.keys(brandGroups).sort((a, b) => {
       const photosA = brandGroups[a].reduce((sum, item) => sum + (item.imgSrc?.length || 0), 0);
       const photosB = brandGroups[b].reduce((sum, item) => sum + (item.imgSrc?.length || 0), 0);
-      return photosA - photosB; // Сортировка от меньшего к большему
+      return photosA - photosB;
     });
-    
+
     // Собираем статистику для каждого бренда
     const brandStats = {};
     for (const brand of brands) {
@@ -178,43 +449,104 @@ async function processImages(jsonFilePath, outputDir) {
       };
     }
 
-    // Выводим список брендов
-    console.log('Доступные бренды:\n'.bold);
-    
-    for (let i = 0; i < brands.length; i++) {
-      const brand = brands[i];
-      const stats = brandStats[brand];
-      const remaining = stats.totalPhotos - stats.downloadedPhotos;
-      const progress = stats.totalPhotos > 0 ? Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0;
-      
-      // Упрощаем название бренда
-      const shortBrand = brand.split(' ')[0]; // Берем только первое слово
-      
-      console.log(`${i + 1}. ${shortBrand.bold.cyan}`);
-      console.log(`   Групп: ${stats.totalGroups.toString().yellow}`);
-      console.log(`   Всего фото: ${stats.totalPhotos.toString().yellow}`);
-      console.log(`   Скачано: ${stats.downloadedPhotos.toString().green}`);
-      console.log(`   Осталось: ${remaining.toString().red}`);
-      console.log(`   Прогресс: ${progress}%\n`);
-    }
-    
-    console.log('0. Загрузить все бренды'.bold.magenta);
+    spinner.succeed('✅ Данные загружены');
 
-    // Запрашиваем выбор пользователя
-    const choice = await question('\nВыберите номер бренда для загрузки: '.bold);
-    const selectedIndex = parseInt(choice) - 1;
+    // Используем новый интерфейс выбора брендов
+    const selectedBrands = await showBrandSelection(brands, brandStats);
+
+    // Запрашиваем настройки загрузки
+    const { concurrency, retryCount, format, structure, errorHandling, logging } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'format',
+        message: '📁 Формат сохранения файлов:',
+        choices: [
+          { name: 'Оригинальный формат (как есть)', value: 'original' },
+          { name: 'Только JPG', value: 'jpg' },
+          { name: 'Только PNG', value: 'png' },
+          { name: 'Определять по содержимому', value: 'auto' }
+        ],
+        default: 'original'
+      },
+      {
+        type: 'list',
+        name: 'structure',
+        message: '📂 Структура папок:',
+        choices: [
+          { name: 'Плоская структура (все в одной папке)', value: 'flat' },
+          { name: 'По брендам', value: 'brands' },
+          { name: 'По брендам и группам', value: 'groups' },
+          { name: 'По дате загрузки', value: 'date' }
+        ],
+        default: 'brands'
+      },
+      {
+        type: 'number',
+        name: 'concurrency',
+        message: '⚡ Количество одновременных загрузок:',
+        default: 30,
+        validate: (value) => {
+          if (value < 1 || value > 100) {
+            return 'Введите число от 1 до 100';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'number',
+        name: 'retryCount',
+        message: '🔄 Количество попыток загрузки:',
+        default: 3,
+        validate: (value) => {
+          if (value < 1 || value > 10) {
+            return 'Введите число от 1 до 10';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'list',
+        name: 'errorHandling',
+        message: '⚠️ Обработка ошибок:',
+        choices: [
+          { name: 'Пропускать ошибки и продолжать', value: 'skip' },
+          { name: 'Останавливаться при ошибке', value: 'stop' },
+          { name: 'Повторять до успеха', value: 'retry' },
+          { name: 'Сохранять в отдельную папку', value: 'separate' }
+        ],
+        default: 'skip'
+      },
+      {
+        type: 'checkbox',
+        name: 'logging',
+        message: '📝 Логирование:',
+        choices: [
+          { name: 'Сохранять лог в файл', value: 'file' },
+          { name: 'Показывать детальный прогресс', value: 'progress' },
+          { name: 'Сохранять статистику', value: 'stats' },
+          { name: 'Отправлять уведомления', value: 'notify' }
+        ],
+        default: ['progress']
+      }
+    ]);
 
     // Фильтруем данные в зависимости от выбора
     let filteredData = data;
-    if (selectedIndex >= 0 && selectedIndex < brands.length) {
-      const selectedBrand = brands[selectedIndex];
-      filteredData = data.filter(item => item.title === selectedBrand);
-      console.log(`\nВыбрана загрузка бренда: ${selectedBrand.bold.cyan}`);
-    } else if (selectedIndex === -1) {
-      console.log('\nВыбрана загрузка всех брендов'.bold.cyan);
+    if (!selectedBrands.includes('all')) {
+      filteredData = data.filter(item => selectedBrands.includes(item.title));
+      console.log(`\n🎯 Выбраны бренды: ${selectedBrands.join(', ').bold.cyan}`);
     } else {
-      console.log('\nНеверный выбор. Загружаем все бренды.'.yellow);
+      console.log('\n🎯 Выбрана загрузка всех брендов'.bold.cyan);
     }
+
+    // Выводим выбранные настройки
+    console.log('\n⚙️ Настройки загрузки:'.bold.cyan);
+    console.log(`📁 Формат: ${(format || 'original').bold}`);
+    console.log(`📂 Структура: ${(structure || 'brands').bold}`);
+    console.log(`⚡ Одновременных загрузок: ${(concurrency || 15).toString().bold}`);
+    console.log(`🔄 Попыток: ${(retryCount || 3).toString().bold}`);
+    console.log(`⚠️ Обработка ошибок: ${(errorHandling || 'skip').bold}`);
+    console.log(`📝 Логирование: ${(logging || ['progress']).join(', ').bold}\n`);
 
     // Подсчитываем общее количество изображений
     const totalImages = filteredData.reduce((sum, item) => sum + (item.imgSrc?.length || 0), 0);
@@ -224,9 +556,9 @@ async function processImages(jsonFilePath, outputDir) {
 
     // Создаем прогресс-бар
     const progressBar = new cliProgress.SingleBar({
-      format: 'Прогресс |{bar}| {percentage}% | {value}/{total} изображений | Пропущено: {skipped} | Осталось: {eta}s',
-      barCompleteChar: '\u2588',
-      barIncompleteChar: '\u2591',
+      format: '📊 Прогресс |{bar}| {percentage}% | {value}/{total} изображений | Пропущено: {skipped} | Осталось: {eta}s',
+      barCompleteChar: '█',
+      barIncompleteChar: '░',
       hideCursor: true
     });
 
@@ -236,44 +568,83 @@ async function processImages(jsonFilePath, outputDir) {
     // Обрабатываем каждый объект
     for (const item of filteredData) {
       if (!item.imgSrc || !Array.isArray(item.imgSrc)) {
-        console.warn('Пропущен объект без imgSrc:'.yellow, item);
+        console.warn('⚠️ Пропущен объект без imgSrc:'.yellow, item);
         continue;
       }
 
-      const { rownum, title, imgSrc: imgSrcArray, price } = item;
-      const brandDir = path.join(outputDir, title);
+      const { rownum = '0', title = 'unknown', imgSrc: imgSrcArray, price = '0' } = item;
+      
+      // Определяем путь сохранения в зависимости от выбранной структуры
+      let brandDir = outputDir;
+      switch (structure || 'brands') {
+        case 'brands':
+          brandDir = path.join(outputDir, title);
+          break;
+        case 'groups':
+          brandDir = path.join(outputDir, title, `group-${rownum}`);
+          break;
+        case 'date':
+          const today = new Date().toISOString().split('T')[0];
+          brandDir = path.join(outputDir, today, title);
+          break;
+        default:
+          brandDir = path.join(outputDir, title);
+      }
+      
       await fsPromises.mkdir(brandDir, { recursive: true });
 
-      const filepaths = imgSrcArray.map((_, i) => 
-        path.join(brandDir, `${rownum}-${i + 1}-${price}`)
-      );
+      const filepaths = imgSrcArray.map((_, i) => {
+        let filename = `${rownum}-${i + 1}-${price}`;
+        if (format === 'jpg') filename += '.jpg';
+        else if (format === 'png') filename += '.png';
+        return path.join(brandDir, filename);
+      });
 
-      const results = await downloadBatch(imgSrcArray, filepaths);
+      const results = await downloadBatch(imgSrcArray, filepaths, concurrency);
       const newSkipped = results.filter(r => r === true).length;
       skippedImages += newSkipped;
       processedImages += imgSrcArray.length;
       
       progressBar.update(processedImages, { skipped: skippedImages });
 
-      // Добавляем небольшую паузу между брендами
-      await delay(2000);
+      await delay(1000);
     }
 
     progressBar.stop();
     const totalTime = Date.now() - startTime;
-    console.log('\nЗагрузка завершена\n'.bold.cyan);
-    console.log(`Общее время: ${formatTime(totalTime).bold.green}`);
-    console.log(`Загружено новых изображений: ${(processedImages - skippedImages).toString().bold.green}`);
-    console.log(`Пропущено существующих: ${skippedImages.toString().bold.yellow}`);
+    
+    console.log('\n✨ Загрузка завершена\n'.bold.cyan);
+    console.log(`⏱️ Общее время: ${formatTime(totalTime).bold.green}`);
+    console.log(`📥 Загружено новых изображений: ${(processedImages - skippedImages).toString().bold.green}`);
+    console.log(`⏭️ Пропущено существующих: ${skippedImages.toString().bold.yellow}`);
 
-    // Закрываем интерфейс ввода
-    rl.close();
-  } catch (error) {
-    console.error('Ошибка:'.bold.red, error.message);
-    if (error instanceof SyntaxError) {
-      console.error('Ошибка в формате JSON файла. Проверьте, что файл содержит корректный JSON массив.'.yellow);
+    // Сохраняем статистику если выбрано
+    if (logging && logging.includes('stats')) {
+      const stats = {
+        totalTime,
+        processedImages,
+        skippedImages,
+        selectedBrands,
+        settings: {
+          format: format || 'original',
+          structure: structure || 'brands',
+          concurrency: concurrency || 15,
+          retryCount: retryCount || 3,
+          errorHandling: errorHandling || 'skip',
+          logging: logging || ['progress']
+        }
+      };
+      await fsPromises.writeFile(
+        path.join(outputDir, 'stats.json'),
+        JSON.stringify(stats, null, 2)
+      );
     }
-    rl.close();
+
+  } catch (error) {
+    console.error('❌ Ошибка:'.bold.red, error.message);
+    if (error instanceof SyntaxError) {
+      console.error('⚠️ Ошибка в формате JSON файла. Проверьте, что файл содержит корректный JSON массив.'.yellow);
+    }
   }
 }
 
