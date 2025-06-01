@@ -9,7 +9,7 @@ require('dotenv').config();
 const BOT_TOKENS = process.env.BOT_TOKENS.split(','); // Массив токенов ботов
 const CHANNEL_ID = process.env.CHANNEL_ID || '@your_channel';
 const POST_DELAY = 1000; // Задержка между постами (1 секунда)
-const BOT_RATE_LIMIT = 20000; // Лимит для бота (20 секунд)
+const BOT_RATE_LIMIT = 10000; // Лимит для бота (10 секунд)
 const MAX_PARALLEL_POSTS = 3; // Максимальное количество параллельных отправок
 
 // Получаем путь к папке из аргументов
@@ -182,12 +182,11 @@ async function main() {
     const firstFile = groups[groupNum][0];
     const priceMatch = firstFile.match(/-([0-9]+)\./);
     const price = priceMatch ? priceMatch[1] : '0';
+
     
     const text = `^^^^^^^^^^^^^^^^^^^^^^^^\n\n  ${brand}\n\n  Вартість: ${price} грн.\n\n~~~~~~~~~~~~~~~~~~~~~~~~`;
+    // const text = `${brand}\nВартість: ${price}\n${hashtag}`;
     
-
-// ${hashtag}
-
     // Распределяем посты между ботами
     const botIndex = postQueue.length % bots.length;
     const bot = bots[botIndex];

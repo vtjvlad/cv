@@ -12,7 +12,7 @@ const colors = require('colors');
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
   keepAlive: true,
-  maxSockets: 50
+  maxSockets: 137
 });
 
 // Создаем пул агентов для лучшего управления соединениями
@@ -20,7 +20,7 @@ const createAgents = (count) => {
   return Array(count).fill(null).map(() => new https.Agent({
     rejectUnauthorized: false,
     keepAlive: true,
-    maxSockets: 50,
+    maxSockets: 137,
     timeout: 30000
   }));
 };
@@ -167,7 +167,7 @@ async function downloadImage(url, filepath, agent, retries = 3) {
 }
 
 // Функция для параллельной загрузки с ограничением
-async function downloadBatch(urls, filepaths, concurrency = 15) {
+async function downloadBatch(urls, filepaths, concurrency = 137) {
   const results = [];
   const agents = Array(concurrency).fill(null).map(() => createAgent());
   let agentIndex = 0;
@@ -627,9 +627,9 @@ async function processImages(jsonFilePath, outputDir) {
         type: 'number',
         name: 'concurrency',
         message: '⚡ Количество одновременных загрузок:',
-        default: 30,
+        default: 42,
         validate: (value) => {
-          if (value < 1 || value > 100) {
+          if (value < 1 || value > 137) {
             return 'Введите число от 1 до 100';
           }
           return true;
