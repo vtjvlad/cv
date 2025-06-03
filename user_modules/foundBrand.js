@@ -7,6 +7,8 @@ function prepareTitle(title) {
 function foundBrand(title) {
     // Список брендов с вариантами написания
     const brands = [
+        { canonical: 'Gucci', variants: ['Gucci', 'Gucci Italy', 'GUCCI', 'gucci', 'GUCC*', 'Gucc*', '古驰', '古奇', '古驰巴黎', '古～', 'G 🔍', '-GUCCl', 'GUCCl', 'G 家', '古奇', '代购级'] },
+        { canonical: 'Louis Vuitton', variants: ['Louis Vuitton', 'LV', 'Lv', 'L.v', 'LVLV', 'LouisVuitton', 'lv-', 'L*', 'LOUIS VUITTON', 'L驴', 'louis vuitton', '*OUIS *UITTO*', 'LOUI VUITTO', 'LOUIS UITTO', 'OUIS UITTO', '＊OUIS ＊UITTO＊', 'OUIS UITTO', '＊OUIS', '＊UITTO＊',   'Louis V ', 'LOUI VUITTO', 'LOUI', 'VUITTO', '路易威登', 'L家', 'L经', 'L家巴黎', 'L经巴黎', 'L家', 'L经'] },
         // { canonical: 'D&G',variants: ['D&G', 'Dolce & Gabbana', 'Dolce Gabbana', 'DGdg', 'DG', 'dg', 'DG*', 'DG*', 'G', 'G logo',]},
         { canonical: 'Dior', variants: ['Dior', 'Christian Dior', 'ChristianDior', 'DIOR', 'dior', 'dio', 'Dio', '迪奥', '迪奥巴黎', '迪奥～', '迪～'] },
         { canonical: 'Fendi', variants: ['Fendi', 'Fendi Roma', 'FendiRoma', 'FENDI', 'fendi', 'Fendi*', 'Fendi*', 'FD', 'FEND*', 'FEND', 'Fedi', 'Fe*di', '芬迪', '芬迪巴黎', '芬～'] },
@@ -24,7 +26,6 @@ function foundBrand(title) {
         { canonical: 'Tom Ford',variants: ['Tom Ford', 'TOM FORD', 'Tom Ford', 'tom ford', 'TOMF ORD', '汤姆·福特']},
         { canonical: 'Versace', variants: ['Versace', 'Gianni Versace', 'Versace Italy', 'VERACE', 'versace', 'VERACE*', '范思哲', '范思哲巴黎', '范～'] },
         { canonical: 'Armani', variants: ['Armani', 'Giorgio Armani', 'GiorgioArmani', 'ARMANI', 'armani', 'Emporio Armani', 'EMPORIO ARMANI', 'Emporio ar', 'Emporio Ar', '-ARMARNI', '乔治·阿玛尼', '乔治·阿玛尼巴黎', '乔治～', '阿玛尼', '阿玛～'] },
-        { canonical: 'Gucci', variants: ['Gucci', 'Gucci Italy', 'GUCCI', 'gucci', 'GUCC*', 'Gucc*', '古驰', '古奇', '古驰巴黎', '古～', 'G 🔍', '-GUCCl', 'GUCCl', 'G 家', '古奇', '代购级'] },
         { canonical: 'Amiri', variants: ['Amiri', 'Amiri LA', 'AmiriLosAngeles', 'AMIRI', 'amiri', 'AMIR*', 'Amir*', '阿米里'] },
         { canonical: 'Boss', variants: ['Boss', 'BOSS', 'Hugo Boss', 'HugoBoss', 'BOOS', 'boss', 'BOSS*', 'Boss*', 'BO' , 'bo', '博斯', '博斯巴黎', '博～', 'ＢＯＳＳ'] },
         { canonical: 'Off-White', variants: ['Off-White', 'Off White', 'OffWhite', 'OFF WHITE', 'off white', 'OFF*', 'Off*', 'OFF', 'off'] },
@@ -45,7 +46,6 @@ function foundBrand(title) {
         { canonical: 'Thom Browne', variants: ['Thom Browne', 'Thom Browne', 'Thom Browne', 'THOM BROWNE', 'TH0M BR0WNE', 'thom browne', 'THOM BROWNE*', 'ThomBrowne*', 'TB', '汤姆·布朗']},
         { canonical: 'Stefano Ricci', variants: ['Stefano Ricci', 'Stefano Ricci', 'Stefano Ricci', 'STEFANO RICCI', 'stefano ricci', 'STEFANO RICCI*', 'StefanoRicci*', '斯蒂芬诺·里奇']},
         { canonical: 'Philipp Plein', variants: ['Philipp Plein', 'Plein', 'PhilippPlein', 'PP', 'P-P', 'Pp', 'pHILIpp pLEIN', '菲利普·普莱恩'] },
-        { canonical: 'Louis Vuitton', variants: ['Louis Vuitton', 'LV', 'Lv', 'L.v', 'LVLV', 'LouisVuitton', 'lv-', 'L*', 'LOUIS VUITTON', 'L驴', 'louis vuitton', '*OUIS *UITTO*', 'LOUI VUITTO', 'LOUIS UITTO', 'OUIS UITTO', '＊OUIS ＊UITTO＊', 'OUIS UITTO', '＊OUIS', '＊UITTO＊',   'Louis V ', 'LOUI VUITTO', 'LOUI', 'VUITTO', '路易威登', 'L家', 'L经', 'L家巴黎', 'L经巴黎', 'L家', 'L经'] },
         { canonical: 'Bottega Veneta', variants: ['Bottega Veneta', 'Bottega', 'BottegaVeneta', 'BV', 'bottega veneta', 'BOTTEGA VENETA', '葆蝶家'] },
         { canonical: 'Dolce & Gabbana', variants: ['Dolce & Gabbana', 'Dolce Gabbana', 'D&G', 'DolceGabbana','DGdg', 'DG', 'dg', 'DG*', 'DG*', 'G logo', 'GG', 'G家', '杜嘉班纳'] },
         { canonical: 'Village Garavani', variants: ['Village Garavani', 'Village Garavani', 'Village Garavani', 'VILLAGE GARAVANI', 'village garavani', 'VILLAGE GARAVANI*', 'VillageGaravani*', '维尔村·加拉瓦尼']},

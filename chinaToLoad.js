@@ -7,6 +7,7 @@ const cliProgress = require('cli-progress');
 const { default: inquirer } = require('inquirer');
 const { default: ora } = require('ora');
 const colors = require('colors');
+const readline = require('readline');
 
 // Создаем агент для игнорирования SSL ошибок
 const httpsAgent = new https.Agent({
@@ -448,61 +449,170 @@ async function showBrandSelection(brands, brandStats) {
         process.exit(0);
 
       case 'simple_list': {
-        console.clear();
-        console.log(createHeader('Список брендов'));
+        // Создаем независимое состояние чекбоксов для простого списка
+        let listCheckboxes = {};
         
-        // Сортируем бренды
-        const sortedBrands = [...filteredBrands].sort((a, b) => {
-          const statsA = brandStats[a];
-          const statsB = brandStats[b];
-          const progressA = statsA.totalPhotos > 0 ? (statsA.downloadedPhotos / statsA.totalPhotos) * 100 : 0;
-          const progressB = statsB.totalPhotos > 0 ? (statsB.downloadedPhotos / statsB.totalPhotos) * 100 : 0;
-
-          switch (currentSort) {
-            case 'photos':
-              return statsB.totalPhotos - statsA.totalPhotos;
-            case 'name':
-              return a.localeCompare(b);
-            case 'progress':
-              return progressB - progressA;
-            default:
-              return 0;
+        // Инициализируем чекбоксы (все выключены по умолчанию)
+        filteredBrands.forEach(brand => {
+          if (!(brand in listCheckboxes)) {
+            listCheckboxes[brand] = false;
           }
         });
 
-        // Выводим список
-        sortedBrands.forEach((brand, index) => {
-          const stats = brandStats[brand];
-          const displayName = showFullNames ? brand : brand.split(' ')[0];
-          const progress = Math.max(0, Math.min(100, stats.totalPhotos > 0 ? 
-            Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0));
-          const isSelected = selectedBrands.includes(brand);
+        const showSimpleList = () => {
+          console.clear();
+          console.log(createHeader('Список брендов с чекбоксами'));
           
-          // Определяем цвет прогресса
-          let progressColor = 'white';
-          if (progress === 100) progressColor = 'green';
-          else if (progress >= 75) progressColor = 'cyan';
-          else if (progress >= 50) progressColor = 'yellow';
-          else if (progress >= 25) progressColor = 'magenta';
-          else progressColor = 'red';
-
-          const status = isSelected ? '✓'.green : ' ';
-          const filledBlocks = Math.max(0, Math.min(10, Math.floor(progress / 10)));
-          const emptyBlocks = 10 - filledBlocks;
-          const progressBar = '█'.repeat(filledBlocks)[progressColor] + '░'.repeat(emptyBlocks).gray;
+          // Добавляем инструкцию о чекбоксах
+          console.log(createBox(
+            'Визуальные чекбоксы для отметок:\n' +
+            '☑️  - Отмечен\n' +
+            '☐  - Не отмечен\n' +
+            'Используйте меню ниже для управления'
+          ).cyan);
           
-          console.log(
-            `${status} ${(index + 1).toString().padStart(2, ' ')}. ` +
-            `${displayName.padEnd(20).cyan} ` +
-            `📁 ${stats.totalGroups.toString().padStart(3, ' ').yellow} групп ` +
-            `[${progressBar}] ` +
-            `${progress}%`.bold[progressColor] + ' ' +
-            `(${stats.downloadedPhotos}/${stats.totalPhotos} фото)`.gray
-          );
-        });
+          // Сортируем бренды
+          const sortedBrands = [...filteredBrands].sort((a, b) => {
+            const statsA = brandStats[a];
+            const statsB = brandStats[b];
+            const progressA = statsA.totalPhotos > 0 ? (statsA.downloadedPhotos / statsA.totalPhotos) * 100 : 0;
+            const progressB = statsB.totalPhotos > 0 ? (statsB.downloadedPhotos / statsB.totalPhotos) * 100 : 0;
 
-        console.log(createSubHeader('Нажмите Enter для возврата в меню...'));
-        await new Promise(resolve => process.stdin.once('data', resolve));
+            switch (currentSort) {
+              case 'photos':
+                return statsB.totalPhotos - statsA.totalPhotos;
+              case 'name':
+                return a.localeCompare(b);
+              case 'progress':
+                return progressB - progressA;
+              default:
+                return 0;
+            }
+          });
+
+          // Выводим список с чекбоксами
+          sortedBrands.forEach((brand, index) => {
+            const stats = brandStats[brand];
+            const displayName = showFullNames ? brand : brand.split(' ')[0];
+            const progress = Math.max(0, Math.min(100, stats.totalPhotos > 0 ? 
+              Math.round((stats.downloadedPhotos / stats.totalPhotos) * 100) : 0));
+            const isChecked = listCheckboxes[brand] || false;
+            
+            // Определяем цвет прогресса
+            let progressColor = 'white';
+            if (progress === 100) progressColor = 'green';
+            else if (progress >= 75) progressColor = 'cyan';
+            else if (progress >= 50) progressColor = 'yellow';
+            else if (progress >= 25) progressColor = 'magenta';
+            else progressColor = 'red';
+
+            // Создаем визуальный чекбокс (независимый от selectedBrands)
+            const checkbox = isChecked ? '☑️ '.green : '☐ '.gray;
+            const filledBlocks = Math.max(0, Math.min(10, Math.floor(progress / 10)));
+            const emptyBlocks = 10 - filledBlocks;
+            const progressBar = '█'.repeat(filledBlocks)[progressColor] + '░'.repeat(emptyBlocks).gray;
+            
+            console.log(
+              `${checkbox}${(index + 1).toString().padStart(2, ' ')}. ` +
+              `${displayName.padEnd(20).cyan} ` +
+              `📁 ${stats.totalGroups.toString().padStart(3, ' ').yellow} групп ` +
+              `[${progressBar}] ` +
+              `${progress}%`.bold[progressColor] + ' ' +
+              `(${stats.downloadedPhotos}/${stats.totalPhotos} фото)`.gray
+            );
+          });
+
+          // Показываем статистику выбранных чекбоксов
+          const checkedCount = Object.values(listCheckboxes).filter(Boolean).length;
+          console.log(createSubHeader(`Отмечено чекбоксов: ${checkedCount}/${sortedBrands.length}`));
+          
+          return sortedBrands;
+        };
+
+        // Простое меню управления чекбоксами
+        const handleCheckboxMenu = async () => {
+          while (true) {
+            const sortedBrands = showSimpleList();
+            
+            const choices = [
+              { name: '✅ Переключить чекбокс бренда', value: 'toggle' },
+              { name: '☑️  Отметить все', value: 'check_all' },
+              { name: '☐  Снять все отметки', value: 'uncheck_all' },
+              { name: '🔄 Обновить список', value: 'refresh' },
+              new inquirer.Separator(),
+              { name: '⬅️  Вернуться в главное меню', value: 'back' }
+            ];
+
+            const { action } = await inquirer.prompt([
+              {
+                type: 'list',
+                name: 'action',
+                message: 'Выберите действие:',
+                choices
+              }
+            ]);
+
+            switch (action) {
+              case 'toggle': {
+                const brandChoices = sortedBrands.map((brand, index) => {
+                  const isChecked = listCheckboxes[brand] || false;
+                  const checkbox = isChecked ? '☑️' : '☐';
+                  const displayName = showFullNames ? brand : brand.split(' ')[0];
+                  return {
+                    name: `${checkbox} ${index + 1}. ${displayName}`,
+                    value: brand
+                  };
+                });
+
+                const { selectedBrand } = await inquirer.prompt([
+                  {
+                    type: 'list',
+                    name: 'selectedBrand',
+                    message: 'Выберите бренд для переключения чекбокса:',
+                    choices: [
+                      ...brandChoices,
+                      new inquirer.Separator(),
+                      { name: '❌ Отмена', value: 'cancel' }
+                    ],
+                    pageSize: 15
+                  }
+                ]);
+
+                if (selectedBrand !== 'cancel') {
+                  listCheckboxes[selectedBrand] = !listCheckboxes[selectedBrand];
+                  console.log(`\n${listCheckboxes[selectedBrand] ? '☑️ Отмечен' : '☐ Снята отметка'}: ${selectedBrand}`.bold);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                break;
+              }
+
+              case 'check_all':
+                sortedBrands.forEach(brand => {
+                  listCheckboxes[brand] = true;
+                });
+                console.log('\n☑️ Все чекбоксы отмечены!'.green.bold);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                break;
+
+              case 'uncheck_all':
+                sortedBrands.forEach(brand => {
+                  listCheckboxes[brand] = false;
+                });
+                console.log('\n☐ Все отметки сняты!'.gray.bold);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                break;
+
+              case 'refresh':
+                // Просто обновляем отображение
+                break;
+
+              case 'back':
+                return;
+            }
+          }
+        };
+
+        await handleCheckboxMenu();
         continue;
       }
     }
