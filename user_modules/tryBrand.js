@@ -35,7 +35,7 @@ function foundBrand(title) {
 
 function addDashesToWords(text) {
     // Находим все английские слова длиннее 3 символов
-    return text.replace(/\b[a-zA-Z]{4,}\b/g, match => `--- ${match} ---`);
+    return text.replace(/\b[a-zA-Z]{4,}\b/g, match => `< ${match} >`);
 }
 
 module.exports = {
