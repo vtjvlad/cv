@@ -9,7 +9,7 @@ function foundBrand(title) {
     const brands = [
         'Louis Vuitton', 'Armani', 'Dior', 'Prada', 'Dolce & Gabbana', 'Fendi', 'Berlut',
         'Brunello Cucinelli', 'Ermenegildo Zegna', 'Zegna', 'Santoni', 
-        'Tod’s', 'Bottega Veneta', 'Balenciaga', 'Gucci', 'Versace', 
+        'Tod`s', 'Bottega Veneta', 'Balenciaga', 'Gucci', 'Versace', 
         'Hermès', 'Alexander McQueen', 'Valentino', 'Philipp Plein', 'BV',
         'Amiri', 'Off-White', 'Boss', 'BOOS', 'P-P', 'PP', 'Lv','LV', 'Salvatore Ferragamo', 'Ferragamo', 'LVLV',
         'VERACE', 'PHILIPP PIEIN', 'Brunello Cucinell', 'HK', 'G logo', 'HERMES', 'DGdg', 'D&G',
@@ -30,10 +30,17 @@ function foundBrand(title) {
     }
     
     // Если бренд не найден, очищаем строку: оставляем латинские буквы, цифры, пробелы, дефис и апостроф
-    return title.replace(/[^\w\s-'’]/g, '').trim().replace(/\s+/g, ' ');
+    return title.replace(/[^\w\s-'']/g, '').trim().replace(/\s+/g, ' ');
 }
+
+function addDashesToWords(text) {
+    // Находим все английские слова длиннее 3 символов
+    return text.replace(/\b[a-zA-Z]{4,}\b/g, match => `--- ${match} ---`);
+}
+
 module.exports = {
     foundBrand,
-    prepareTitle
+    prepareTitle,
+    addDashesToWords
 };
 
