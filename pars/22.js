@@ -1,7 +1,5 @@
-// const { wrapPriceCode } = require('../user_modules/warpPrice');
-const { prepareTitle2 } = require('../user_modules/foundBrand');
-// const { addDashesToWords } = require('../user_modules/tryBrand');
-// const { addDashesToWords } = require('../user_modules/tryBrand');
+const { addDashesToWords, addDashesToWords2 } = require('../user_modules/tryBrand');
+const { prepareTitle, prepareTitle2, prepareTitle3 } = require('../user_modules/foundBrand');
 
 
 
@@ -17,9 +15,10 @@ function processJson(jsonData) {
             console.warn('Пропущено поле title или imgsSrc в объекте:', item);
             return item; // Возвращаем объект без изменений, если поля отсутствуют
         }
-        return {
+        return { 
             ...item,
-            nm2: prepareTitle2(item.title), 
+            nm2: prepareTitle3(item.title),
+						
         };
     });
 }
@@ -28,7 +27,7 @@ function processJson(jsonData) {
 // Пример использования
 const fs = require('fs');
 
-fs.readFile('../JSON/prePrice.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/prepear.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;
@@ -39,7 +38,7 @@ fs.readFile('../JSON/prePrice.json', 'utf8', (err, data) => {
         const cleanedData = processJson(jsonData);
 
         // Сохранение результата в новый файл
-        fs.writeFile('../JSON/title.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
+        fs.writeFile('../JSON/pp.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
             if (err) {
                 console.error('Ошибка записи файла:', err);
                 return;

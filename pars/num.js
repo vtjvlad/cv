@@ -9,7 +9,7 @@ function addSequentialNumbers(items) {
 }
 
 // Чтение файла
-fs.readFile('../JSON/wp.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/pear.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;
@@ -20,7 +20,7 @@ fs.readFile('../JSON/wp.json', 'utf8', (err, data) => {
         const numberedData = addSequentialNumbers(jsonData);
 
         // Сохранение результата
-        fs.writeFile('../JSON/st.json', JSON.stringify(numberedData, null, 2), 'utf8', err => {
+        fs.writeFile('../JSON/ll.json', JSON.stringify(numberedData, null, 2), 'utf8', err => {
             if (err) {
                 console.error('Ошибка записи файла:', err);
                 return;

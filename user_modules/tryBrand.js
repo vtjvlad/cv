@@ -33,14 +33,23 @@ function foundBrand(title) {
     return title.replace(/[^\w\s-'']/g, '').trim().replace(/\s+/g, ' ');
 }
 
-function addDashesToWords(text) {
+function addDashesToWords2(text) {
     // Находим все английские слова длиннее 3 символов
-    return text.replace(/\b[a-zA-Z]{4,}\b/g, match => `< ${match} >`);
+    return text.replace(/\b[a-zA-Z]{3,}\b/g, match => `🫸 ${match} 🫷`);
+}
+function addDashesToWords(text) {
+    // Находим все английские слова длиннее 3 символов кроме logo и size
+    // // Добавляем тире до и после каждого слова
+    const excluded = ['Logo', 'logo', 'Size', 'size'];
+    return text.replace(/\b[a-zA-Z]{3,}\b/g, match => { 
+     return excluded.includes(match) ? match : `--- ${match} ---`;
+    });
 }
 
 module.exports = {
     foundBrand,
-    prepareTitle,
-    addDashesToWords
+    prepareTitle, 
+    addDashesToWords,
+    addDashesToWords2
 };
 

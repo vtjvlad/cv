@@ -1,4 +1,4 @@
-const { titleClean } = require('../user_modules/titleClean');
+const { cleanTitle } = require('../user_modules/titleClean');
 // const { cleanTitle } = require('./user_modules/titleClean');
 // const { wrapPriceCode } = require('./user_modules/warpPrice');
 // const { convertPrice } = require('./user_modules/convPrice');
@@ -17,7 +17,7 @@ function processJson(jsonData) {
         return {
             ...item,
             // title: wrapPriceCode(item.title), // Обрабатываем title
-            nm: titleClean(item.title), // Добавляем новое поле ctrsname
+            nm: cleanTitle(item.title), // Добавляем новое поле ctrsname
             // title: cleanTitle(item.title), // Обрабатываем title
             // price: convertPrice(item.title) // Добавляем новое поле ctrsname
         };
@@ -96,7 +96,7 @@ function analyzeResults(data) {
 
 const fs = require('fs');
 
-fs.readFile('../JSON/china-ready.json', 'utf8', (err, data) => {
+fs.readFile('../JSON/pear.json', 'utf8', (err, data) => {
     if (err) {
         console.error('Ошибка чтения файла:', err);
         return;

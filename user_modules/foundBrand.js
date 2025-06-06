@@ -1,6 +1,9 @@
+const { iterMessages } = require("telegram/client/messages");
+
 function prepareTitle(title) {
     // Ищем текст в обычных квадратных скобках [ ] или китайских скобках 【 】 или《 》 или 「 」
-    const match = title.match(/[\[【《「]([^\]】》」]+)[\]】》」]/); 
+    // const match = title.match(/[\[【《「]([^\]】》」]+)[\]】》」]/); 
+    const match = title.match(/[\[【《「]([^\]】》」]+)[\]】》」]/);
     return match ? match[1].trim() : '';
 }
 
@@ -8,23 +11,24 @@ function prepareTitle(title) {
 function prepareTitle2(title) {
     // Ищем текст в обычных квадратных скобках [ ] или китайских скобках 【 】 или《 》 или 「 」
     // const match = title.match(/[\---]([^\---]+)[\---]/); 
-    const match = title.match(/[\<]([^\>]+)[\>]/); 
+    const match = title.match(/🫸([^]+?)🫷/); 
     return match ? match[1].trim() : '';
 }
 
 function prepareTitle3(title) {
     // Ищем текст в обычных квадратных скобках [ ] или китайских скобках 【 】 или《 》 или 「 」
-    const match = title.match(/[\---]([^\---]+)[\---]/); 
+    // const match = title.match(/[\---]([^\---]+)[\---]/); 
+    const match = title.match(/---([^]+?)---/);
     // const match = title.match(/[\<]([^\>]+)[\>]/); 
-    return match ? match[1].trim() : '';
+    return match ? match[1].trim() || match[args[1]].trim()  : '';
 }
 
 function foundBrand(title, ...args) {
     // Список брендов с вариантами написания
     const brands = [
         //       【】
-        { canonical: 'Gucci', variants: ['Gucci', 'Gucci Italy', 'GUCCI', 'gucci', 'Gucc*', '古驰', '古奇', '古驰巴黎', '古～', 'G 🔍', '-GUCCl', 'GUCCl', 'G 家', '古奇', '代购级'] },
-        { canonical: 'Louis Vuitton', variants: ['Louis Vuitton','路易威登', 'LV路', '路易威登LV', '登LV', 'Lv～', 'L.v', 'LVLV', 'LouisVuitton', 'lv-',  'LV男士拖鞋', 'LOUIS VUITTON', 'louis vuitton', 'OUIS', 'LOUI VUITTO', 'LOUIS UITTO', 'OUIS UITTO', 'OUIS UITTO', 'OUIS UITTO', 'OUIS', 'UITTO',   'Louis V ', 'LOUI VUITTO', 'LOUI', 'VUITTO', 'L家巴黎', 'L经巴黎', '【LV】', '【路易威登】', ] },
+        { canonical: 'Gucci', variants: ['Gucci', 'Gucci Italy', 'GUCCI', 'gucci', 'Gucc*', '古驰', '古奇', '古驰巴黎', '古～', 'G 🔍', '-GUCCl', 'GUCCl', 'G 家', '古奇', '代购级', '男士凉鞋' ] },
+        { canonical: 'Louis Vuitton', variants: ['Louis Vuitton','路易威登', 'LV路', '路易威登LV', '登LV', 'Lv～', 'L.v', 'LVLV', 'LouisVuitton', 'lv-',  'LV男士拖鞋', 'LOUIS VUITTON', 'louis vuitton', 'OUIS', 'LOUI VUITTO', 'LOUIS UITTO', 'OUIS UITTO', 'OUIS UITTO', 'OUIS UITTO', 'OUIS', 'UITTO',   'Louis V ', 'LOUI VUITTO', 'LOUI', 'VUITTO', 'L家', 'L家巴黎', 'L经巴黎', '【LV】', '【路易威登】', 'LV🔥', 'LV🔥🔥🔥' ] },
         // { canonical: 'D&G',variants: ['D&G', 'Dolce & Gabbana', 'Dolce Gabbana', 'DGdg', 'DG', 'dg',     'G', 'G logo',]},
         { canonical: 'Dior', variants: ['Dior', 'Christian Dior', 'ChristianDior', 'DIOR', 'dior', 'dio', 'Dio', '迪奥', '迪奥巴黎', '迪奥～', '迪～'] },
         { canonical: 'Fendi', variants: ['Fendi', 'Fendi Roma', 'FendiRoma', 'FENDI', 'fendi', 'FEND', 'Fedi', 'Fe*di', '芬迪', '芬迪巴黎', '芬～'] },
@@ -36,14 +40,14 @@ function foundBrand(title, ...args) {
         { canonical: 'Loro Piana', variants: ['Loro Piana', 'LORO PIANA', 'LoroPiana', 'LORO ', 'LORO', 'loro', '罗洛·皮亚纳']},
         { canonical: 'Balenciaga', variants: ['Balenciaga', 'Balenci', 'Balenciaga Paris', 'BALENCIAGA', 'balenciaga', 'BALENCICGA', '巴黎世家', 'Tra Sneaker'] },
         { canonical: 'Dsquared2',variants: ['Dsquared2', 'Dsquared', 'Dsquared2', 'DSQUARED2', 'dsquared2',   'D2']},
-        { canonical: 'Moncler', variants: ['Moncler', 'MONCLER', 'Moncler', 'moncler',     'moncler', 'Moncle',   '蒙克莱', '蒙克莱巴黎', '蒙～', 'monc', '毛里订做']},
+        { canonical: 'Moncler', variants: ['Moncler', 'MONCLER', 'Moncler', 'moncler',     'moncler', 'Moncle',   '蒙克莱', '蒙克莱巴黎', '蒙～', 'monc', '毛里订做', '蒙口']},
         { canonical: 'Ferragamo',variants: ['Ferragamo', 'Salvatore Ferragamo', 'Ferraga', 'F Gancini', '菲拉格慕', '牛里', '牛里奥']},
         { canonical: 'Givenchy', variants: ['Givenchy', 'GIVENCHY', 'Givenchy Paris', 'G I V E N C H Y', 'GIVENCHY', 'givenchy', '纪梵希', '纪梵希巴黎', '纪～'] },
         { canonical: 'Tom Ford',variants: ['Tom Ford', 'TOM FORD', 'Tom Ford', 'tom ford', 'TOMF ORD', '汤姆·福特']},
         { canonical: 'Versace', variants: ['Versace', 'Gianni Versace', 'Versace Italy', 'VERACE', 'versace', '范思哲', '范思哲巴黎', '范～', '【范思哲】'] },
         { canonical: 'Armani', variants: ['Armani', 'Giorgio Armani', 'GiorgioArmani', 'ARMANI', 'armani', 'Emporio Armani', 'EMPORIO ARMANI', 'Emporio ar', 'Emporio Ar', '-ARMARNI', '乔治·阿玛尼', '乔治·阿玛尼巴黎', '乔治～', '阿玛尼', '阿玛～'] },
         { canonical: 'Amiri', variants: ['Amiri', 'Amiri LA', 'AmiriLosAngeles', 'AMIRI', 'amiri', '阿米里'] },
-        { canonical: 'Boss', variants: ['Boss', 'BOSS', 'Hugo Boss', 'HugoBoss', 'BOOS', 'boss', '博斯', '博斯巴黎', '博～', 'ＢＯＳＳ'] },
+        { canonical: 'Boss', variants: ['Boss', 'BOSS', 'Hugo Boss', 'HugoBoss', 'BOOS', 'boss', '博斯', '博斯巴黎', '博～', 'ＢＯＳＳ', 'BO～'] },
         { canonical: 'Off-White', variants: ['Off-White', 'Off White', 'OffWhite', 'OFF WHITE', 'off white',     'OFF', 'off'] },
         { canonical: 'Chanel', variants: ['Chanel', 'CHANEL', 'Chanel Paris', 'Chanel', 'chanel', '香奈儿', '香奈儿巴黎', '香～', '香奈儿', '香奈儿巴黎', '香～', 'Chnel']},
         { canonical: 'Kenzo', variants: ['Kenzo', 'KENZO', 'Kenzo Paris', 'KENZO', 'kenzo', '高田贤三', '高田贤三巴黎', '高～']},
@@ -56,14 +60,14 @@ function foundBrand(title, ...args) {
         { canonical: 'MIUMIU', variants: ['MIUMIU', 'Miu Miu', 'Miu Miu', 'MIUMIU', 'miu miu', '原单品质•独家首发', '缪缪', '缪缪巴黎', '缪～']},
         { canonical: 'Santoni', variants: ['Santoni', 'Santoni Shoes', 'SANTONI', 'santoni'] },
         { canonical: 'Olympia', variants: ['Olympia', 'OLYMPIA', 'Olympia', 'olympia',     '奥林匹亚']},
-        { canonical: 'Burberry', variants: ['Burberry', 'Burberry London', 'Burberry London', 'BURBERRY', 'BURBERR', 'Vintage', 'burberry',       '博柏利', '博柏利巴黎', '博～', '博柏利', '巴宝莉', '巴宝莉巴黎', '巴～', '宝～', 'B家'] },
+        { canonical: 'Burberry', variants: ['Burberry', 'Burberry London', 'Burberry London', 'BURBERRY', 'BURBERR', 'Vintage', 'burberry',  '路易威',     '博柏利', '博柏利巴黎', '博～', '博柏利', '巴宝莉', '巴宝莉巴黎', '巴～', '宝～', 'B家', '跑量'] },
         { canonical: 'Valentino', variants: ['Valentino', 'Valentino Garavani', 'ValentinoGaravani', 'VALENTINO', 'valentino',     'VLTN', '华伦天奴', '华伦天奴巴黎', '华～', '伦～']},
         { canonical: 'Balenciaga', variants: ['Balenciaga', 'Balenci', 'Balenciaga Paris', 'BALENCIAGA', 'balenciaga', 'BALENCICGA', '巴黎世家']},
         { canonical: 'Thom Browne', variants: ['Thom Browne', 'Thom Browne', 'Thom Browne', 'THOM BROWNE', 'TH0M BR0WNE', 'thom browne', 'THOM ', '汤姆·布朗']},
         { canonical: 'Stefano Ricci', variants: ['Stefano Ricci', 'Stefano Ricci', 'Stefano Ricci', 'STEFANO RICCI', 'stefano ricci', 'STEFANO ', '斯蒂芬诺·里奇']},
-        { canonical: 'Philipp Plein', variants: ['Philipp Plein', 'Plein', 'PhilippPlein', 'P-P',  'pHILIpp pLEIN', '菲利普·普莱恩'] },
-        { canonical: 'Bottega Veneta', variants: ['Bottega Veneta', 'Bottega', 'BottegaVeneta', 'bottega veneta', 'BOTTEGA VENETA', '葆蝶家', 'BV男士拖鞋', '【BV】' ] },
-        { canonical: 'Dolce & Gabbana', variants: ['Dolce & Gabbana', 'Dolce Gabbana', 'D&G', 'DolceGabbana', 'Dolce&Gabbana', 'DGdg', '杜嘉班纳', 'DG杜嘉班纳', 'DG～杜嘉班纳', 'DOLC GDBNA ', 'DG', '杜嘉班纳&DG'] },
+        { canonical: 'Philipp Plein', variants: ['Philipp Plein', 'Plein', 'PhilippPlein', 'P-P',  'pHILIpp pLEIN', '菲利普·普莱恩', '菲利普普莱', 'PP～', 'PP'] },
+        { canonical: 'Bottega Veneta', variants: ['Bottega Veneta', 'Bottega', 'BottegaVeneta', 'bottega veneta', 'BOTTEGA VENETA', '葆蝶家', 'BV男士拖鞋', '【BV】', 'B V' ] },
+        { canonical: 'Dolce & Gabbana', variants: ['Dolce & Gabbana', 'Dolce Gabbana', 'D&G', 'DolceGabbana', 'Dolce&Gabbana', 'DGdg', '杜嘉班纳', 'DG杜嘉班纳', 'DG～杜嘉班纳', 'DOLC GDBNA ', 'DG', '杜嘉班纳&DG', 'DG杜嘉班纳', 'gabbana'] },
         { canonical: 'Village Garavani', variants: ['Village Garavani', 'Village Garavani', 'Village Garavani', 'VILLAGE GARAVANI', 'village garavani', 'VILLAGE ', '维尔村·加拉瓦尼']},
         { canonical: 'Ermenegildo Zegna', variants: ['Ermenegildo Zegna', 'Zegna', 'ErmenegildoZegna', 'EZegna', 'ZegnaZegna', 'ZEGNA', 'zegna', '杰尼亚'] },
         { canonical: 'Brunello Cucinelli', variants: ['Brunello Cucinelli', 'Cucinelli', 'BrunelloCucinelli', 'BRUNELLO CUCINELLI', 'brunello cucinelli', 'BRUNELLO CUCINELLI', 'BrunelloCucinelli', 'BC', '布兰诺', '布兰诺巴黎', '布～', '-高端品质  原单🔍🔍🔍'] },
@@ -90,10 +94,16 @@ function foundBrand(title, ...args) {
             }
         }
     }
- // Если бренд не найден, очищаем строку: и подставляем значение из nm2
- return args[1] || args[0] || args[2];
-
+    // Если бренд не найден, очищаем строку: оставляем латинские буквы, цифры, пробелы, дефис и апостроф
+    // return title.replace(/[^\w\s-'’]/g, '').trim().replace(/\s+/g, ' ');
+    
+    // Если бренд не найден, очищаем строку: и подставляем значение из nm2
+    // return args[1] || args[0] || args[2];
+    
+    // Если бренд не найден, очищаем строку: и подставляем значение из nm2
+    return  `${args[1]}` || `${args[0]}` || title.replace(/[^\w\s-'’]/g, '').trim().replace(/\s+/g, ' ');
 }
+
 module.exports = {
     foundBrand,
     prepareTitle,

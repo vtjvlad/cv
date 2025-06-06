@@ -1,6 +1,6 @@
 const { wrapPriceCode } = require('../user_modules/warpPrice');
-const { prepareTitle } = require('../user_modules/foundBrand');
-const { addDashesToWords } = require('../user_modules/tryBrand');
+const { prepareTitle, prepareTitle2, prepareTitle3 } = require('../user_modules/foundBrand');
+const { addDashesToWords, addDashesToWords2 } = require('../user_modules/tryBrand');
 
 
 
@@ -16,10 +16,11 @@ function processJson(jsonData) {
             console.warn('Пропущено поле title или imgsSrc в объекте:', item);
             return item; // Возвращаем объект без изменений, если поля отсутствуют
         }
-        return {
+        return { 
+				  	
             ...item,
-            nm: prepareTitle(item.title),
-            title: wrapPriceCode(item.title)
+		title: wrapPriceCode(addDashesToWords(item.title)),
+        nm: prepareTitle(item.title),
         };
     });
 }
@@ -39,7 +40,7 @@ fs.readFile('../JSON/china_extracted.json', 'utf8', (err, data) => {
         const cleanedData = processJson(jsonData);
 
         // Сохранение результата в новый файл
-        fs.writeFile('../JSON/prepareTitle.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
+        fs.writeFile('../JSON/prepear.json', JSON.stringify(cleanedData, null, 2), 'utf8', err => {
             if (err) {
                 console.error('Ошибка записи файла:', err);
                 return;

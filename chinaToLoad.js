@@ -968,7 +968,7 @@ async function processImages(jsonFilePath, outputDir) {
 }
 
 // Использование
-const jsonFilePath = './JSON/china-ready.json';
+const jsonFilePath = './JSON/lll.json';
 const outputDir = 'china-images';
 
 processImages(jsonFilePath, outputDir);
