@@ -33,7 +33,7 @@ const stringSession = new StringSession(""); // если сессия есть �
   // 📢 Создание нового канала
   const result = await client.invoke(
     new Api.channels.CreateChannel({
-        title: "Fendi",
+        title: "Boss",
       about: "",
       megagroup: false, // false = канал
     })
