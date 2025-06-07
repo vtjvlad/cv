@@ -2,6 +2,7 @@ const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { Api } = require("telegram");
 const input = require("input");
+const fs = require('fs');
 require("dotenv").config();
 
 // 🔐 Замените на свои данные
@@ -32,7 +33,7 @@ const stringSession = new StringSession(""); // если сессия есть �
   // 📢 Создание нового канала
   const result = await client.invoke(
     new Api.channels.CreateChannel({
-        title: "Ferragamo",
+        title: "Fendi",
       about: "",
       megagroup: false, // false = канал
     })
@@ -42,6 +43,11 @@ const stringSession = new StringSession(""); // если сессия есть �
   const channel = result.chats[0];
 
   console.log(`📢 Канал создан: ${channel.title} (ID: ${channel.id})`);
+
+  // 💾 Сохранение информации о канале в файл
+  const channelInfo = `Название: ${channel.title}, ID: ${channel.id}\n`;
+  fs.appendFileSync('channels_info.txt', channelInfo, 'utf8');
+  console.log('✅ Информация о канале сохранена в файл channels_info.txt');
 
   // ✅ Права админа
   const rights = new Api.ChatAdminRights({
@@ -89,7 +95,17 @@ const stringSession = new StringSession(""); // если сессия есть �
     "cvpost27_bot",
     "cvpost28_bot",
     "cvpost29_bot",
-    "cvpost30_bot"
+    "cvpost30_bot",
+    "cvpost31_bot",
+    "cvpost32_bot",
+    "cvpost33_bot",
+    "cvpost34_bot",
+    "cvpost35_bot",
+    "cvpost36_bot",
+    "cvpost37_bot", 
+    "cvpost38_bot",
+    "cvpost39_bot",
+    "cvpost40_bot"
     // Добавь сюда остальных
   ];
 

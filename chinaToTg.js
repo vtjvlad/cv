@@ -10,7 +10,7 @@ const BOT_TOKENS = process.env.BOT_TOKENS.split(','); // Массив токен
 const CHANNEL_ID = process.env.CHANNEL_ID || '@your_channel';
 const POST_DELAY = 1000; // Задержка между постами (1 секунда)
 const BOT_RATE_LIMIT = 20000; // Лимит для бота (20 секунд)
-const MAX_PARALLEL_POSTS = 5; // Максимальное количество параллельных отправок
+const MAX_PARALLEL_POSTS = 13; // Максимальное количество параллельных отправок
 
 // Получаем путь к папке из аргументов
 const brandDir = process.argv[2];
